@@ -27,9 +27,9 @@ class App:
         self.new_data = None
         self.last_data = None
 
-        self.best_move = None
-        self.best_lines = None
-        self.scores = None
+        self.best_move = list()
+        self.best_lines = list()
+        self.scores = list()
 
         self.new_analysis = False
 
@@ -39,7 +39,8 @@ class App:
 
     def run(self):
         self.run_browser()
-        self.run_stockfish()
+        self.run_engine()
+        self.run_input()
         while True:
             if self.new_data is not None:
 
@@ -52,11 +53,8 @@ class App:
                 self.history.put(self.new_data)
                 if self.new_data != self.last_data:
                     self.last_data = self.new_data
-                    self.clear()
-                    print(self.history.board.visual)
-                    print(self.history.fen)
-                    print(self.last_data)
-                    self.stop_stockfish()
+                    self.show()
+                    self.stop_engine()
                     self.engine_lock.acquire()
                     self.new_analysis = True
                     self.engine_lock.release()
@@ -75,6 +73,12 @@ class App:
                     self.new_data = parsed_data
                     self.parser_lock.release()
 
+    def on_input(self):
+        while True:
+            message = input()
+            if message == 's':
+                self.engine.stop()
+
     def on_stockfish(self):
         while True:
             if self.new_analysis:
@@ -90,7 +94,11 @@ class App:
                               in best_lines]
                 best_move = self.notation.pgn(board.copy(), [best_move], white_plays, en_passant)
 
-                self.show_lines(best_move, best_lines, scores)
+                self.best_move = best_move
+                self.scores = scores
+                self.best_lines = best_lines
+
+                self.show()
                 self.engine_lock.release()
 
     def run_browser(self):
@@ -98,11 +106,15 @@ class App:
         t = threading.Thread(target=self.on_data)
         t.start()
 
-    def run_stockfish(self):
+    def run_engine(self):
         t = threading.Thread(target=self.on_stockfish)
         t.start()
 
-    def stop_stockfish(self):
+    def run_input(self):
+        t = threading.Thread(target=self.on_input)
+        t.start()
+
+    def stop_engine(self):
         try:
             self.engine.stop()
         except BrokenPipeError:
@@ -110,16 +122,22 @@ class App:
 
     def setup_engine(self):
         # path = 'files/stockfish_20011801_x64'
-        path = 'files/lc0 --threads=8'
-        self.engine = Engine(path, depth=5, parameters=self.params)
+        path = 'files/lc0 --multipv={}'.format(8, self.params['MultiPV'])
+        self.engine = Engine(path, depth=20, parameters=self.params)
         self.new_analysis = False
         if self.engine_lock.locked():
             self.engine_lock.release()
 
-    def show_lines(self, best_move, best_lines, scores):
-        for score, line in zip(scores, best_lines):
-            print("Score: {}, {}".format(score, line))
-        print('Best move: ', best_move)
+    def show(self):
+        self.clear()
+        print(self.history.board.visual)
+        print(self.history.fen)
+        print(self.last_data)
+
+        if self.best_lines is not None:
+            for score, line in zip(self.scores, self.best_lines):
+                print("Score: {}, {}".format(score, line))
+            print('Best move: ', self.best_move)
 
     def clear(self):
         if name == 'nt':
