@@ -28,6 +28,13 @@ class Browser:
                 data.append(html)
             except (NoSuchElementException, StaleElementReferenceException):
                 pass
+
+        if 'lichess.org':
+            try:
+                html = self.driver.find_element_by_class_name('moves').get_attribute('outerHTML')
+                data.append(html)
+            except (NoSuchElementException, StaleElementReferenceException):
+                pass
         return data
 
     @property

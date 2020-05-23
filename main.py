@@ -2,11 +2,12 @@ from browser import Browser
 from game import FenGame, PgnGame, Game, Moves
 from rules import Rules
 from chessboard import Chessboard, Square, Pieces
-from stockfish import Stockfish, DEFAULT_STOCKFISH_PARAMS
+from engine import Engine, DEFAULT_STOCKFISH_PARAMS, DEFAULT_LEELA_PARAMS
 import time
 import threading
 from parsing import select_parser
 from notation import AlgebraicNotation
+from os import name, system
 
 
 class App:
@@ -19,7 +20,7 @@ class App:
         self.pgn_history = PgnGame()
         self.notation = AlgebraicNotation()
 
-        self.params = DEFAULT_STOCKFISH_PARAMS
+        self.params = DEFAULT_LEELA_PARAMS
         self.params['MultiPV'] = 3
 
         self.engine = None
@@ -33,8 +34,8 @@ class App:
         self.new_analysis = False
 
         self.parser_lock = threading.Lock()
-        self.stockfish_lock = threading.Lock()
-        self.setup_stockfish()
+        self.engine_lock = threading.Lock()
+        self.setup_engine()
 
     def run(self):
         self.run_browser()
@@ -51,13 +52,14 @@ class App:
                 self.history.put(self.new_data)
                 if self.new_data != self.last_data:
                     self.last_data = self.new_data
+                    self.clear()
                     print(self.history.board.visual)
                     print(self.history.fen)
                     print(self.last_data)
                     self.stop_stockfish()
-                    self.stockfish_lock.acquire()
+                    self.engine_lock.acquire()
                     self.new_analysis = True
-                    self.stockfish_lock.release()
+                    self.engine_lock.release()
 
                 self.new_data = None
                 self.parser_lock.release()
@@ -76,7 +78,7 @@ class App:
     def on_stockfish(self):
         while True:
             if self.new_analysis:
-                self.stockfish_lock.acquire()
+                self.engine_lock.acquire()
                 self.new_analysis = False
                 self.engine.set_fen_position(self.history.fen)
                 board = self.history.board.copy()
@@ -89,7 +91,7 @@ class App:
                 best_move = self.notation.pgn(board.copy(), [best_move], white_plays, en_passant)
 
                 self.show_lines(best_move, best_lines, scores)
-                self.stockfish_lock.release()
+                self.engine_lock.release()
 
     def run_browser(self):
         self.browser.open()
@@ -104,19 +106,27 @@ class App:
         try:
             self.engine.stop()
         except BrokenPipeError:
-            self.setup_stockfish()
+            self.setup_engine()
 
-    def setup_stockfish(self):
-        self.engine = Stockfish('files/stockfish_20011801_x64', depth=15, parameters=self.params)
+    def setup_engine(self):
+        # path = 'files/stockfish_20011801_x64'
+        path = 'files/lc0 --threads=8'
+        self.engine = Engine(path, depth=5, parameters=self.params)
         self.new_analysis = False
-        if self.stockfish_lock.locked():
-            self.stockfish_lock.release()
+        if self.engine_lock.locked():
+            self.engine_lock.release()
 
     def show_lines(self, best_move, best_lines, scores):
-        print(best_move)
         for score, line in zip(scores, best_lines):
             print("Score: {}, {}".format(score, line))
         print('Best move: ', best_move)
+
+    def clear(self):
+        if name == 'nt':
+            _ = system('cls')
+
+        else:
+            _ = system('clear')
 
 
 app = App()

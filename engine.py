@@ -17,15 +17,19 @@ DEFAULT_STOCKFISH_PARAMS = {
     "UCI_Chess960": "false",
 }
 
+DEFAULT_LEELA_PARAMS = {
 
-class Stockfish:
+}
+
+
+class Engine:
     """Integrates the Stockfish chess engine with Python."""
 
     def __init__(
-            self, path: str = "stockfish", depth: int = 2, parameters: dict = None
+            self, path: str = "engine", depth: int = 2, parameters: dict = None
     ) -> None:
-        self.stockfish = subprocess.Popen(
-            path, universal_newlines=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        self.engine = subprocess.Popen(
+            path, universal_newlines=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True
         )
 
         self._put("uci")
@@ -35,8 +39,7 @@ class Stockfish:
 
         if parameters is None:
             parameters = {}
-        self._parameters = DEFAULT_STOCKFISH_PARAMS
-        self._parameters.update(parameters)
+        self._parameters = parameters
         for name, value in list(self._parameters.items()):
             self._set_option(name, value)
 
@@ -55,15 +58,15 @@ class Stockfish:
         self.info = ""
 
     def _put(self, command: str) -> None:
-        if not self.stockfish.stdin:
+        if not self.engine.stdin:
             raise BrokenPipeError()
-        self.stockfish.stdin.write(f"{command}\n")
-        self.stockfish.stdin.flush()
+        self.engine.stdin.write(f"{command}\n")
+        self.engine.stdin.flush()
 
     def _read_line(self) -> str:
-        if not self.stockfish.stdout:
+        if not self.engine.stdout:
             raise BrokenPipeError()
-        return self.stockfish.stdout.readline().strip()
+        return self.engine.stdout.readline().strip()
 
     def _set_option(self, name: str, value: Any) -> None:
         self._put(f"setoption name {name} value {value}")
@@ -101,7 +104,7 @@ class Stockfish:
         self._put(f"position startpos moves {self._convert_move_list_to_str(moves)}")
 
     def get_board_visual(self) -> str:
-        """ Get a visual representation of the current board position 
+        """ Get a visual representation of the current board position
             Note: "d" is a stockfish only command
         Args:
         Returns:
@@ -158,11 +161,12 @@ class Stockfish:
         self._put(f"position fen {fen_position}")
 
     def get_best_lines(self):
-        multipv = self._parameters['MultiPV']
+        multipv = 1
+        if 'MultiPV' in self._parameters:
+            multipv = self._parameters['MultiPV']
         lines = ['' for _ in range(multipv + 1)]
 
         line_regex = re.compile('info depth.+score (cp|mate) (-?\d+).+pv (.+)')
-        best_move = ''
 
         self._go()
         while True:
@@ -182,8 +186,11 @@ class Stockfish:
 
         line_matches = [line_regex.match(x) for x in lines]
         line_matches = line_matches[:multipv]
-        scores = ['{} {}'.format(x.group(1), x.group(2)) for x in line_matches]
-        best_lines = [x.group(3) for x in line_matches]
+        scores, best_lines = list(), list()
+        for match in line_matches:
+            if match is not None:
+                scores.append('{} {}'.format(match.group(1), match.group(2)))
+                best_lines.append(match.group(3))
 
         return best_move, best_lines[::-1], scores[::-1]
 
@@ -226,4 +233,4 @@ class Stockfish:
                     return True
 
     def __del__(self) -> None:
-        self.stockfish.kill()
+        self.engine.kill()

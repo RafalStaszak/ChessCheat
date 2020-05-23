@@ -1,4 +1,5 @@
-from . import ChessComBoardOnlineParser, ChessComBoardOfflineParser, ChessComMovesOnlineParser, ChessComMovesOfflineParser
+from . import ChessComBoardOnlineParser, ChessComBoardOfflineParser, ChessComMovesOnlineParser, \
+    ChessComMovesOfflineParser, LichessParser
 
 
 def select_parser(data: list):
@@ -9,4 +10,6 @@ def select_parser(data: list):
         if ChessComMovesOfflineParser.parsable(d):
             return ChessComMovesOfflineParser
 
+        if LichessParser.parsable(d):
+            return LichessParser
     return None
