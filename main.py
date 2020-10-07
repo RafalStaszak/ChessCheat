@@ -123,7 +123,7 @@ class App:
     def setup_engine(self):
         # path = 'files/stockfish_20011801_x64'
         path = 'files/lc0 --multipv={}'.format(8, self.params['MultiPV'])
-        self.engine = Engine(path, depth=20, parameters=self.params)
+        self.engine = Engine(path, depth=8, parameters=self.params)
         self.new_analysis = False
         if self.engine_lock.locked():
             self.engine_lock.release()
